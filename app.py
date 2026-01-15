@@ -98,7 +98,11 @@ df = df.sort_values("Replacement Priority Score", ascending=False)
 # -----------------------------
 # Budget Simulation
 # -----------------------------
-df["Estimated Replacement Cost"] = df["Acquisition Cost"].replace(0, df["Total Cost of Ownership"] * 1.2)
+df["Estimated Replacement Cost"] = np.where(
+    df["Acquisition Cost"].fillna(0) > 0,
+    df["Acquisition Cost"],
+    df["Total Cost of Ownership"].fillna(0) * 1.2
+)
 
 df["Cumulative Cost"] = df["Estimated Replacement Cost"].cumsum()
 df["Within Budget"] = df["Cumulative Cost"] <= budget
