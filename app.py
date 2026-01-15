@@ -93,11 +93,6 @@ if modality:
 if site:
     df = df[df["Site"].isin(site)]
     
-priority_filter = st.sidebar.multiselect(
-    "Priority Status",
-    ["Urgent", "Due for Replacement", "Good"],
-    default=["Urgent", "Due for Replacement", "Good"]
-)
 
 df = df[df["Priority Status"].isin(priority_filter)]
 
@@ -121,6 +116,12 @@ def priority_status(score):
         return "Good"
 
 df["Priority Status"] = df["Replacement Priority Score"].apply(priority_status)
+
+priority_filter = st.sidebar.multiselect(
+    "Priority Status",
+    ["Urgent", "Due for Replacement", "Good"],
+    default=["Urgent", "Due for Replacement", "Good"]
+)
 
 # -----------------------------
 # Budget Simulation
