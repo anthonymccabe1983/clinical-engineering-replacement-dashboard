@@ -4,6 +4,15 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
+def minutes_to_dhm(minutes):
+    if pd.isna(minutes):
+        return "0d 0h 0m"
+    minutes = int(minutes)
+    days = minutes // 1440
+    hours = (minutes % 1440) // 60
+    mins = minutes % 60
+    return f"{days}d {hours}h {mins}m"
+
 st.set_page_config(page_title="Clinical Engineering Replacement Planning Dashboard", layout="wide")
 
 st.title("Clinical Engineering Asset Replacement Planning")
@@ -26,7 +35,7 @@ df = pd.read_excel(uploaded_file)
 today = pd.Timestamp.today()
 
 df["Created"] = pd.to_datetime(df["Created"], errors="coerce")
-df["Age (Years)"] = (today - df["Created"]).dt.days / 365
+df["Age (Years)"] = ((today - df["Created"]).dt.days / 365).round(2)
 
 numeric_cols = [
     "Fault Count",
@@ -49,6 +58,7 @@ df["Age Score"] = normalize(df["Age (Years)"])
 df["Fault Score"] = normalize(df["Fault Count"])
 df["Downtime Score"] = normalize(df["Total Unplanned Downtime"])
 df["Cost Score"] = normalize(df["Total Cost of Ownership"])
+df["Unplanned Downtime (D:H:M)"] = df["Total Unplanned Downtime"].apply(minutes_to_dhm)
 
 # -----------------------------
 # Sidebar Controls
@@ -82,6 +92,14 @@ if modality:
     df = df[df["Modality"].isin(modality)]
 if site:
     df = df[df["Site"].isin(site)]
+    
+priority_filter = st.sidebar.multiselect(
+    "Priority Status",
+    ["Urgent", "Due for Replacement", "Good"],
+    default=["Urgent", "Due for Replacement", "Good"]
+)
+
+df = df[df["Priority Status"].isin(priority_filter)]
 
 # -----------------------------
 # Priority Score
@@ -94,6 +112,15 @@ df["Replacement Priority Score"] = (
 )
 
 df = df.sort_values("Replacement Priority Score", ascending=False)
+def priority_status(score):
+    if score >= 0.70:
+        return "Urgent"
+    elif score >= 0.40:
+        return "Due for Replacement"
+    else:
+        return "Good"
+
+df["Priority Status"] = df["Replacement Priority Score"].apply(priority_status)
 
 # -----------------------------
 # Budget Simulation
@@ -102,6 +129,10 @@ df["Estimated Replacement Cost"] = np.where(
     df["Acquisition Cost"].fillna(0) > 0,
     df["Acquisition Cost"],
     df["Total Cost of Ownership"].fillna(0) * 1.2
+)
+
+df["Estimated Replacement Cost ($)"] = df["Estimated Replacement Cost"].apply(
+    lambda x: f"${x:,.0f}"
 )
 
 df["Cumulative Cost"] = df["Estimated Replacement Cost"].cumsum()
@@ -128,17 +159,28 @@ display_cols = [
     "Modality",
     "Age (Years)",
     "Fault Count",
-    "Total Unplanned Downtime",
-    "Estimated Replacement Cost",
+    "Unplanned Downtime (D:H:M)",
+    "Estimated Replacement Cost ($)",
     "Replacement Priority Score",
+    "Priority Status",
     "Within Budget"
 ]
 
-st.dataframe(
-    df[display_cols],
-    use_container_width=True,
-    height=600
-)
+def color_priority(val):
+    if val == "Urgent":
+        return "background-color: #ffcccc; color: #990000; font-weight: bold"
+    elif val == "Due for Replacement":
+        return "background-color: #fff0cc; color: #a65c00; font-weight: bold"
+    else:
+        return "background-color: #e6ffe6; color: #006600"
+
+styled_df = df[display_cols + [
+    "Priority Status",
+    "Unplanned Downtime (D:H:M)",
+    "Estimated Replacement Cost ($)"
+]].style.applymap(color_priority, subset=["Priority Status"])
+
+st.dataframe(styled_df, use_container_width=True, height=600)
 
 # -----------------------------
 # Download
